@@ -403,6 +403,36 @@ impl Protocol {
         )
     }
 
+
+    /// Get the the total number of chunks for the import file
+    ///
+    pub fn get_import_size(&self, message: Value) -> Result<(u32, Value), ProtocolError>{
+        let recv_message = message.clone();        
+        let raw = match message {
+            Value::Array(val) => val.to_owned(),
+            _ => {
+                return Err(ProtocolError::MessageParseError {
+                    err: "Data not an array".to_owned(),
+                });
+            }
+        };
+        
+        let mut pieces = raw.iter();
+
+        let _ackmsg = pieces.next();
+        let _chn = pieces.next();
+        let _hash = pieces.next();
+
+        let num_chunks = match pieces.next().ok_or_else(|| {
+            ProtocolError::MissingParam("success".to_owned(), "num chunks".to_owned())
+        })? {
+            Value::U64(val) => *val as u32,
+            _ => 9999
+        };
+
+        Ok((num_chunks, recv_message))
+    }
+
     // Verify the integrity of received file data and then transfer into the requested permanent file location.
     // Notify the connection peer of the results
     //
@@ -681,8 +711,8 @@ impl Protocol {
                     }
                     Message::ReceiveChunk(channel_id, hash, chunk_num, data) => {
                         info!(
-                            "<- {{ {}, {}, {}, chunk_data }}",
-                            channel_id, hash, chunk_num
+                            "<- {{ Rec_chunk: {}, {}, {}/{}, chunk_data }}",
+                            channel_id, hash, chunk_num, num_chunks,
                         );
                         storage::store_chunk(
                             &self.config.storage_prefix,
@@ -712,7 +742,7 @@ impl Protocol {
                         };
                         new_state = State::Transmitting;
                     }
-                    Message::NAK(channel_id, hash, None, num_chunks) => {
+                    Message::NAK(channel_id, hash, None, _num_chunks) => {
                         info!("<- {{ {}, {}, false }}", channel_id, hash);
                         // TODO: Maybe trigger a failure?
                         new_state = state.clone();
@@ -783,12 +813,13 @@ impl Protocol {
                     }
                     Message::SuccessTransmit(channel_id, hash, num_chunks, mode) => {
                         match mode {
-                            Some(value) => info!(
-                                "<- {{ {}, true, {}, {}, {} }}",
-                                channel_id, hash, num_chunks, value
-                            ),
+                            Some(value) => {
+                                info!(
+                                "<- {{ DL_init_Suc! Chn: {}, #:{}, Num_Chunks:{}, {} }}",
+                                channel_id, hash, num_chunks, value)
+                            },
                             None => {
-                                info!("<- {{ {}, true, {}, {} }}", channel_id, hash, num_chunks)
+                                info!("<- {{ DL_init_Fail! Chn: {}, #:{}, Num_Chunks{} }}", channel_id, hash, num_chunks)
                             }
                         }
 

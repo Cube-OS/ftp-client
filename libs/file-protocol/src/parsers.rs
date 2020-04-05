@@ -81,7 +81,7 @@ pub fn parse_message(message: Value, num_chunks: u32) -> Result<Message, Protoco
         if let Some(msg) = parse_success_receive(channel_id, pieces.to_owned())? {
             return Ok(msg);
         }
-        if let Some(msg) = parse_success_transmit(channel_id, pieces.to_owned())? {
+        if let Some(msg) = parse_success_transmit(channel_id, num_chunks, pieces.to_owned())? {
             return Ok(msg);
         }
         if let Some(msg) = parse_bad_op(channel_id, pieces.to_owned())? {
@@ -243,6 +243,7 @@ pub fn parse_success_receive(
 // { channel_id, "true", ..values }
 pub fn parse_success_transmit(
     channel_id: u32,
+    num_chunks: u32,
     mut pieces: Iter<Value>,
 ) -> Result<Option<Message>, ProtocolError> {
     if let Some(Value::Bool(true)) = pieces.next() {
@@ -255,18 +256,6 @@ pub fn parse_success_transmit(
                     return Err(ProtocolError::InvalidParam(
                         "success".to_owned(),
                         "hash".to_owned(),
-                    ));
-                }
-            };
-
-            let num_chunks = match pieces.next().ok_or_else(|| {
-                ProtocolError::MissingParam("success".to_owned(), "num chunks".to_owned())
-            })? {
-                Value::U64(val) => *val,
-                _ => {
-                    return Err(ProtocolError::InvalidParam(
-                        "success".to_owned(),
-                        "num chunks".to_owned(),
                     ));
                 }
             };

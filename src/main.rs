@@ -69,7 +69,7 @@ fn download(
     let channel = protocol_instance.generate_channel()?;
     
     // set the default chunk number as 9999, WIP
-    let num_chunks = 9999;
+    // let num_chunks = 9999;
 
     // Send our file request to the remote addr and verify that it's
     // going to be able to send it
@@ -84,9 +84,11 @@ fn download(
         Err(error) => bail!("Failed to import file: {}", error),
     };
 
-    // WIP, num_chunk unknown at this stage. 
+
+    let (num_chunks, recv_message) = protocol_instance.get_import_size(reply).unwrap();
+
     let state = protocol_instance.process_message(
-        reply,
+        recv_message,
         &State::StartReceive {
             path: target_path.to_string(),
         },
