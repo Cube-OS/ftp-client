@@ -122,7 +122,7 @@ fn cleanup(protocol_instance: FileProtocol, hash: Option<String>) -> Result<(), 
 
 fn main() {
     CombinedLogger::init(vec![
-        TermLogger::new(LevelFilter::Info, Config::default()).unwrap()
+        TermLogger::new(LevelFilter::Info, Config::default(),TerminalMode::Mixed,ColorChoice::Auto)
     ])
     .unwrap();
 
@@ -172,7 +172,7 @@ fn main() {
             Arg::with_name("host_ip")
                 .help("IP address of the local host to use")
                 .long("host-ip")
-                .short("-h")
+                .short('h')
                 .takes_value(true)
                 .default_value("0.0.0.0"),
         )
@@ -180,7 +180,7 @@ fn main() {
             Arg::with_name("host_port")
                 .help("UDP port that the file transfer service will send responses to")
                 .long("host-port")
-                .short("-P")
+                .short('P')
                 .takes_value(true)
                 .default_value("8080"),
         )
@@ -188,7 +188,7 @@ fn main() {
             Arg::with_name("remote_ip")
                 .help("IP address of the file transfer service to connect to")
                 .long("remote-ip")
-                .short("-r")
+                .short('r')
                 .takes_value(true)
                 .default_value("0.0.0.0"),
         )
@@ -196,7 +196,7 @@ fn main() {
             Arg::with_name("remote_port")
                 .help("UDP port of the file transfer service to connect to")
                 .long("remote-port")
-                .short("-p")
+                .short('p')
                 .takes_value(true)
                 .default_value("8040"),
         )
@@ -204,7 +204,7 @@ fn main() {
             Arg::with_name("storage_prefix")
                 .help("Folder name used for transfer storage")
                 .long("storage-prefix")
-                .short("-s")
+                .short('s')
                 .takes_value(true)
                 .default_value("file-storage"),
         )
@@ -212,7 +212,7 @@ fn main() {
             Arg::with_name("transfer_chunk_size")
                 .help("Chunk size used for transfer chunking")
                 .long("transfer-chunk-size")
-                .short("-c")
+                .short('c')
                 .takes_value(true)
                 .default_value("1024"),
         )
@@ -227,7 +227,7 @@ fn main() {
             Arg::with_name("hold_count")
                 .help("Internal hold counter controlling retry length")
                 .long("hold-count")
-                .short("-t")
+                .short('t')
                 .takes_value(true)
                 .default_value("6"),
         )
@@ -235,7 +235,7 @@ fn main() {
             Arg::with_name("inter_chunk_delay")
                 .help("Delay (in milliseconds) between each chunk transmission")
                 .long("inter-chunk-delay")
-                .short("-d")
+                .short('d')
                 .takes_value(true)
                 .default_value("1"),
         )
@@ -243,7 +243,7 @@ fn main() {
             Arg::with_name("max_chunks_transmit")
                 .help("Maximum number of chunks to transmit in one go")
                 .long("max-chunks-transmit")
-                .short("-m")
+                .short('m')
                 .takes_value(true),
         )
         .setting(AppSettings::SubcommandRequiredElseHelp)
