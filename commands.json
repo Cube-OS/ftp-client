@@ -1,0 +1,15 @@
+# struct Download {
+	source_path: String,
+	target_path: String,
+}
+
+# struct Upload {
+	source_path: String,
+	target_path: String,
+}
+
+# struct CleanUp {
+	hash: Option<String>,
+}
+
+

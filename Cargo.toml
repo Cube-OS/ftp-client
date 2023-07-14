@@ -1,12 +1,21 @@
 [package]
-name = "kubos-file-client"
+name = "ftp-client"
 version = "0.1.0"
 authors = ["Ryan Plauche <ryan@kubos.co>", "Patrick Oppel <patrick.oppel94@gmail.com"]
 edition = "2018"
 
 [dependencies]
-simplelog = "^0.12.0"
-clap = "3.2"
-log = "^0.4.0"
-file-protocol = { git = "ssh://git@github.com/Cube-OS/file-protocol", features = ["client"]}
+cbor-protocol = { git = "ssh://git@github.com/Cube-OS/cbor-protocol.git", branch = "stream"}
 failure = "0.1.2"
+file-protocol = {git = "ssh://git@github.com/Cube-OS/file-protocol.git", branch = "stream", features = ["client"]}
+cubeos-service = { git = "ssh://git@github.com/Cube-OS/cubeos-service"}
+log = "^0.4.0"
+serde_cbor = "0.10.2"
+udp-rs = { git = "ssh://git@github.com/Cube-OS/udp-rs"}
+hal-stream = { git = "ssh://git@github.com/Cube-OS/hal-stream" }
+serde = { version = "1.0.58", features = ["derive"] }
+
+[features]
+default = []
+ground = ["cubeos-service/ground"]
+debug = ["cubeos-service/debug"]

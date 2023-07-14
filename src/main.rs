@@ -18,327 +18,60 @@
 // - Rebranding Cube-OS
 // - add feature client to display chunck progress
 
-use clap::{App, AppSettings, Arg, SubCommand};
-use failure::bail;
-use file_protocol::{FileProtocol, FileProtocolConfig, State};
-use log::{error, info};
-use simplelog::*;
-use std::path::Path;
-use std::time::Duration;
+// #![deny(warnings)]
+mod service;
+mod subsystem;
 
-#[allow(clippy::too_many_arguments)]
-fn upload(
-    protocol_instance: FileProtocol,
-    source_path: &str,
-    target_path: &str,
-) -> Result<(), failure::Error> {
-    info!(
-        "Uploading local:{} to remote:{}",
-        &source_path, &target_path
-    );
+use crate::subsystem::*;
+use cubeos_service::{Service, Config, Logger};
+use log::{error, warn};
+use std::sync::Arc;
+use crate::service::*;
+use failure::format_err;
 
-    // Copy file to upload to temp storage. Calculate the hash and chunk info
-    let (hash, num_chunks, mode) = protocol_instance.initialize_file(&source_path)?;
+fn main() -> Result<(), failure::Error> {
+    Logger::init().unwrap();
 
-    // Generate channel id for transaction
-    let channel = protocol_instance.generate_channel()?;
-
-    // Tell our destination the hash and number of chunks to expect
-    protocol_instance.send_metadata(channel, &hash, num_chunks)?;
-
-    // Send export command for file
-    protocol_instance.send_export(channel, &hash, &target_path, mode, num_chunks)?;
-
-    // Start the engine to send the file data chunks
-    protocol_instance.message_engine(
-        |d| protocol_instance.recv(Some(d)),
-        Duration::from_secs(2),
-        &State::Transmitting,
-        num_chunks,
-    )?;
-    Ok(())
-}
-
-fn download(
-    protocol_instance: FileProtocol,
-    source_path: &str,
-    target_path: &str,
-) -> Result<(), failure::Error> {
-    info!(
-        "Downloading remote: {} to local: {}",
-        source_path, target_path
-    );
-
-    // Generate channel id for transaction
-    let channel = protocol_instance.generate_channel()?;
-    
-    // set the default chunk number as 9999, WIP
-    // let num_chunks = 9999;
-
-    // Send our file request to the remote addr and verify that it's
-    // going to be able to send it
-    protocol_instance.send_import(channel, source_path)?;
-
-    // Wait for the request reply.
-    // Note/TODO: We don't use a timeout here because we don't know how long it will
-    // take the server to prepare the file we've requested.
-    // Larger files (> 100MB) can take over a minute to process.
-    let reply = match protocol_instance.recv(None) {
-        Ok(message) => message,
-        Err(error) => bail!("Failed to import file: {}", error),
-    };
-
-
-    let (num_chunks, recv_message) = protocol_instance.get_import_size(reply).unwrap();
-
-    let state = protocol_instance.process_message(
-        recv_message,
-        &State::StartReceive {
-            path: target_path.to_string(),
-        },
-        num_chunks,
-    )?;
-
-    protocol_instance.message_engine(
-        |d| protocol_instance.recv(Some(d)),
-        Duration::from_secs(2),
-        &state,
-        num_chunks,
-    )?;
-    Ok(())
-}
-
-fn cleanup(protocol_instance: FileProtocol, hash: Option<String>) -> Result<(), failure::Error> {
-    match &hash {
-        Some(s) => info!("Requesting remote cleanup of temp storage for hash {}", s),
-        None => info!("Requesting remote cleanup of all temp storage"),
-    }
-
-    // Generate channel ID for transaction
-    let channel = protocol_instance.generate_channel()?;
-
-    // Send our cleanup request to the remote addr and verify that it's
-    // going to be able to send it
-    protocol_instance.send_cleanup(channel, hash)?;
-
-    Ok(())
-}
-
-fn main() {
-    CombinedLogger::init(vec![
-        TermLogger::new(LevelFilter::Info, Config::default(),TerminalMode::Mixed,ColorChoice::Auto)
-    ])
-    .unwrap();
-
-    info!("Starting file transfer client");
-
-    let args = App::new("File transfer client")
-        .subcommand(
-            SubCommand::with_name("upload")
-                .about("Initiates upload of local file")
-                .arg(
-                    Arg::with_name("source_path")
-                        .help("Local file path to upload")
-                        .takes_value(true)
-                        .required(true),
-                )
-                .arg(
-                    Arg::with_name("target_path")
-                        .help("Destination path on remote target")
-                        .takes_value(true),
-                ),
-        )
-        .subcommand(
-            SubCommand::with_name("download")
-                .about("Requests download of remote file")
-                .arg(
-                    Arg::with_name("source_path")
-                        .help("Remote file path to download")
-                        .takes_value(true)
-                        .required(true),
-                )
-                .arg(
-                    Arg::with_name("target_path")
-                        .help("Local destination path")
-                        .takes_value(true),
-                ),
-        )
-        .subcommand(
-            SubCommand::with_name("cleanup")
-                .about("Requests cleanup of remote temporary storage")
-                .arg(
-                    Arg::with_name("hash")
-                        .help("Specific file storage to clean up")
-                        .takes_value(true),
-                ),
-        )
-        .arg(
-            Arg::with_name("host_ip")
-                .help("IP address of the local host to use")
-                .long("host-ip")
-                .short('h')
-                .takes_value(true)
-                .default_value("0.0.0.0"),
-        )
-        .arg(
-            Arg::with_name("host_port")
-                .help("UDP port that the file transfer service will send responses to")
-                .long("host-port")
-                .short('P')
-                .takes_value(true)
-                .default_value("8080"),
-        )
-        .arg(
-            Arg::with_name("remote_ip")
-                .help("IP address of the file transfer service to connect to")
-                .long("remote-ip")
-                .short('r')
-                .takes_value(true)
-                .default_value("0.0.0.0"),
-        )
-        .arg(
-            Arg::with_name("remote_port")
-                .help("UDP port of the file transfer service to connect to")
-                .long("remote-port")
-                .short('p')
-                .takes_value(true)
-                .default_value("8040"),
-        )
-        .arg(
-            Arg::with_name("storage_prefix")
-                .help("Folder name used for transfer storage")
-                .long("storage-prefix")
-                .short('s')
-                .takes_value(true)
-                .default_value("file-storage"),
-        )
-        .arg(
-            Arg::with_name("transfer_chunk_size")
-                .help("Chunk size used for transfer chunking")
-                .long("transfer-chunk-size")
-                .short('c')
-                .takes_value(true)
-                .default_value("1024"),
-        )
-        .arg(
-            Arg::with_name("hash_chunk_size")
-                .help("Chunk size used when hashing for file storage")
-                .long("hash-chunk-size")
-                .takes_value(true)
-                .default_value("2048"),
-        )
-        .arg(
-            Arg::with_name("hold_count")
-                .help("Internal hold counter controlling retry length")
-                .long("hold-count")
-                .short('t')
-                .takes_value(true)
-                .default_value("6"),
-        )
-        .arg(
-            Arg::with_name("inter_chunk_delay")
-                .help("Delay (in milliseconds) between each chunk transmission")
-                .long("inter-chunk-delay")
-                .short('d')
-                .takes_value(true)
-                .default_value("1"),
-        )
-        .arg(
-            Arg::with_name("max_chunks_transmit")
-                .help("Maximum number of chunks to transmit in one go")
-                .long("max-chunks-transmit")
-                .short('m')
-                .takes_value(true),
-        )
-        .setting(AppSettings::SubcommandRequiredElseHelp)
-        .setting(AppSettings::DeriveDisplayOrder)
-        .get_matches();
-
-    let host_ip = args.value_of("host_ip").unwrap();
-    let host_port: u16 = args.value_of("host_port").unwrap().parse().unwrap();
-    let remote_addr = format!(
-        "{}:{}",
-        args.value_of("remote_ip").unwrap(),
-        args.value_of("remote_port").unwrap()
-    );
-    let transfer_chunk_size: usize = args
-        .value_of("transfer_chunk_size")
-        .unwrap()
-        .parse()
+    let config = Config::new("ftp-client-service")
+        .map_err(|err| {
+            error!("Failed to load service config: {:?}", err);
+            err
+        })
         .unwrap();
-    let hash_chunk_size: usize = args.value_of("hash_chunk_size").unwrap().parse().unwrap();
-    let hold_count: u16 = args.value_of("hold_count").unwrap().parse().unwrap();
-    let storage_prefix = args.value_of("storage_prefix").unwrap().to_string();
-    let inter_chunk_delay: u64 = args.value_of("inter_chunk_delay").unwrap().parse().unwrap();
-    let max_chunks_transmit: Option<u32> = if args.is_present("max_chunks_transmit") {
-        Some(
-            args.value_of("max_chunks_transmit")
-                .unwrap()
-                .parse()
-                .unwrap(),
-        )
-    } else {
-        None
-    };
 
-    let protocol_config = FileProtocolConfig::new(
-        Some(storage_prefix),
-        transfer_chunk_size,
-        hold_count,
-        inter_chunk_delay,
-        max_chunks_transmit,
-        hash_chunk_size,
-    );
-    let protocol_instance = FileProtocol::new(
-        &format!("{}:{}", host_ip, host_port),
-        &remote_addr,
-        protocol_config,
-    );
+    let service = Box::new(FileService::new(&config));
 
-    let result = match args.subcommand_name() {
-        Some("upload") => {
-            let upload_args = args.subcommand_matches("upload").unwrap();
-            let source_path = upload_args.value_of("source_path").unwrap();
-            let target_path = match upload_args.value_of("target_path") {
-                Some(path) => path.to_owned(),
-                None => Path::new(&source_path)
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-                    .into_owned(),
-            };
+    #[cfg(feature = "ground")]
+    let socket = config
+        .get("udp_socket")
+        .ok_or_else(|| {
+            error!("Failed to load 'udp-socket' config value");
+            format_err!("Failed to load 'udp-socket' config value");
+        })
+        .unwrap();
 
-            upload(protocol_instance, &source_path, &target_path)
-        }
-        Some("download") => {
-            let download_args = args.subcommand_matches("download").unwrap();
-            let source_path = download_args.value_of("source_path").unwrap();
-            let target_path = match download_args.value_of("target_path") {
-                Some(path) => path.to_owned(),
-                None => Path::new(&source_path)
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-                    .into_owned(),
-            };
+    #[cfg(feature = "ground")]
+    let target = config
+        .get("target")
+        .ok_or_else(|| {
+            error!("Failed to load 'target' config value");
+            format_err!("Failed to load 'target' config value");
+        })
+        .unwrap();
 
-            download(protocol_instance, &source_path, &target_path)
-        }
-        Some("cleanup") => {
-            let hash = args
-                .subcommand_matches("cleanup")
-                .unwrap()
-                .value_of("hash")
-                .to_owned()
-                .map(|v| v.to_owned());
-            cleanup(protocol_instance, hash)
-        }
-        _ => panic!("Invalid command"),
-    };
+    #[cfg(feature = "ground")]
+    // Start ground service
+    Service::new(
+        config.clone(),
+        socket.as_str().unwrap().to_string(),
+        target.as_str().unwrap().to_string(),
+        Some(Arc::new(json_handler)),
+    )
+    .start();
 
-    if let Err(err) = result {
-        error!("Operation failed: {}", err);
-    } else {
-        info!("Operation successful");
-    }
+    #[cfg(not(feature = "ground"))]
+    //Start up UDP server
+    Service::new(config.clone(), service, Some(Arc::new(udp_handler))).start();
+
+    Ok(())
 }
