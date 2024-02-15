@@ -98,7 +98,10 @@ fn download(
         };
         
         let (file_name, last) = match bincode::deserialize::<Message>(&reply.clone())? {
-            Message::SuccessTransmit{channel_id, file_name, hash, num_chunks, mode, last} => (file_name, last),
+            Message::SuccessTransmit{channel_id, file_name, hash, num_chunks, mode, last} => {
+                info!("SuccessTransmit: {} {} {} {} {:?} {}", channel_id, file_name, hash, num_chunks, mode, last);
+                (file_name, last)
+            }
             _ => bail!("Failed to import file: {}", "Invalid message type"),
         };
     
@@ -148,7 +151,7 @@ fn cleanup(protocol_instance: FileProtocol, hash: Option<String>) -> Result<(), 
 fn main() {
 
     CombinedLogger::init(vec![
-        TermLogger::new(LevelFilter::Info, Config::default(), TerminalMode::Mixed, ColorChoice::Auto)
+        TermLogger::new(LevelFilter::Debug, Config::default(), TerminalMode::Mixed, ColorChoice::Auto)
     ]).unwrap();
 
     info!("Starting file transfer client");
@@ -262,7 +265,7 @@ fn main() {
                 .long("inter-chunk-delay")
                 .short('d')
                 .takes_value(true)
-                .default_value("1"),
+                .default_value("12"),
         )
         .arg(
             Arg::with_name("max_chunks_transmit")
@@ -270,6 +273,14 @@ fn main() {
                 .long("max-chunks-transmit")
                 .short('m')
                 .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("num_threads")
+                .help("Number of threads to use for file transfer")
+                .long("num-threads")
+                .short('n')
+                .takes_value(true)
+                .default_value("1"),
         )
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .setting(AppSettings::DeriveDisplayOrder)
@@ -301,6 +312,7 @@ fn main() {
     } else {
         None
     };
+    let num_threads = args.value_of("num_threads").unwrap().parse().unwrap();
 
     let protocol_config = FileProtocolConfig::new(
         Some(storage_prefix),
@@ -314,6 +326,7 @@ fn main() {
         &format!("{}:{}", host_ip, host_port),
         &remote_addr,
         protocol_config,
+        num_threads,
     );
 
     let result = match args.subcommand_name() {
