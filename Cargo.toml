@@ -10,6 +10,3 @@ clap = "3.2"
 log = "^0.4.0"
 file-protocol = { path = "libs/file-protocol" }
 failure = "0.1.2"
-#rustbar = "0.2.0"
-
-
