@@ -21,6 +21,8 @@ use log::{error, info};
 use simplelog::*;
 use std::path::Path;
 use std::time::Duration;
+use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
 
 #[allow(clippy::too_many_arguments)]
 fn upload(
@@ -124,7 +126,7 @@ fn download(
 
         protocol_instance.message_engine(
             |d| protocol_instance.recv(Some(d)),
-            Duration::from_secs(2),
+            Duration::from_secs(5),
             &state,
         )?;
     }
@@ -327,6 +329,7 @@ fn main() {
         &remote_addr,
         protocol_config,
         num_threads,
+        Arc::new(Mutex::new(HashMap::new())),
     );
 
     let result = match args.subcommand_name() {
