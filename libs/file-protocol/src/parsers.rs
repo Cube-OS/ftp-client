@@ -48,7 +48,7 @@ pub fn parse_channel_id(message: &Value) -> Result<u32, ProtocolError> {
     }
 }
 
-pub fn parse_message(message: Value, num_chunks: u32) -> Result<Message, ProtocolError> {
+pub fn parse_message(message: Value) -> Result<Message, ProtocolError> {
     let raw = match message {
         Value::Array(val) => val.to_owned(),
         _ => {
@@ -81,7 +81,10 @@ pub fn parse_message(message: Value, num_chunks: u32) -> Result<Message, Protoco
         if let Some(msg) = parse_success_receive(channel_id, pieces.to_owned())? {
             return Ok(msg);
         }
-        if let Some(msg) = parse_success_transmit(channel_id, num_chunks, pieces.to_owned())? {
+        // if let Some(msg) = parse_success_transmit(channel_id, num_chunks, pieces.to_owned())? {
+        //     return Ok(msg);
+        // }
+        if let Some(msg) = parse_success_transmit(channel_id, pieces.to_owned())? {
             return Ok(msg);
         }
         if let Some(msg) = parse_bad_op(channel_id, pieces.to_owned())? {
@@ -90,7 +93,7 @@ pub fn parse_message(message: Value, num_chunks: u32) -> Result<Message, Protoco
         if let Some(msg) = parse_ack(channel_id, pieces.to_owned())? {
             return Ok(msg);
         }
-        if let Some(msg) = parse_nak(channel_id, num_chunks, pieces.to_owned())? {
+        if let Some(msg) = parse_nak(channel_id, pieces.to_owned())? {
             return Ok(msg);
         }
         if let Some(msg) = parse_chunk(channel_id, pieces.to_owned())? {
@@ -243,19 +246,40 @@ pub fn parse_success_receive(
 // { channel_id, "true", ..values }
 pub fn parse_success_transmit(
     channel_id: u32,
-    num_chunks: u32,
+    // num_chunks: u32,
     mut pieces: Iter<Value>,
 ) -> Result<Option<Message>, ProtocolError> {
     if let Some(Value::Bool(true)) = pieces.next() {
         // Good - { channel_id, true, ...values }
         if let Some(piece) = pieces.next() {
-            // It's a good result after an 'import' operation
-            let hash = match piece {
+            let name = match piece {
                 Value::String(val) => val,
+                _ => {
+                    return Err(ProtocolError::InvalidParam(
+                        "success_transmit".to_owned(),
+                        "name".to_owned(),
+                    ));
+                }
+            };
+            // It's a good result after an 'import' operation
+            let hash = match pieces.next() {
+                Some(Value::String(val)) => val,
                 _ => {
                     return Err(ProtocolError::InvalidParam(
                         "success".to_owned(),
                         "hash".to_owned(),
+                    ));
+                }
+            };
+
+            let num_chunks = match pieces.next().ok_or_else(|| {
+                ProtocolError::MissingParam("success".to_owned(), "num chunks".to_owned())
+            })? {
+                Value::U64(val) => *val,
+                _ => {
+                    return Err(ProtocolError::InvalidParam(
+                        "success".to_owned(),
+                        "num chunks".to_owned(),
                     ));
                 }
             };
@@ -268,6 +292,7 @@ pub fn parse_success_transmit(
             // Return the file info
             return Ok(Some(Message::SuccessTransmit(
                 channel_id,
+                name.to_string(),
                 hash.to_string(),
                 num_chunks as u32,
                 mode,
@@ -329,7 +354,6 @@ pub fn parse_ack(
 // { hash, false, ..missing_chunks }
 pub fn parse_nak(
     channel_id: u32,
-    num_chunks: u32,
     mut pieces: Iter<Value>,
 ) -> Result<Option<Message>, ProtocolError> {
     if let Some(Value::String(hash)) = pieces.next() {
@@ -352,7 +376,7 @@ pub fn parse_nak(
                 channel_id,
                 hash.to_owned(),
                 Some(remaining_chunks),
-                num_chunks,
+                // num_chunks,
             )));
         }
     }
@@ -369,6 +393,7 @@ pub fn parse_chunk(
     if let Some(Value::String(hash)) = pieces.next() {
         if let Some(Value::U64(num)) = pieces.next() {
             if let Some(third_param) = pieces.next() {
+                log::info!("Received chunk {} of {}", num, hash);
                 if let Value::Bytes(data) = third_param {
                     return Ok(Some(Message::ReceiveChunk(
                         channel_id,

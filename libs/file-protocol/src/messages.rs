@@ -40,9 +40,18 @@ pub fn export_request(
 }
 
 // Create import message
-pub fn import_request(channel_id: u32, source_path: &str) -> Result<Vec<u8>, ProtocolError> {
-    info!("-> {{ import, {} }}", source_path);
-    ser::to_vec_packed(&(channel_id, "import", source_path)).map_err(|err| {
+// pub fn import_request(channel_id: u32, source_path: &str) -> Result<Vec<u8>, ProtocolError> {
+//     info!("-> {{ import, {} }}", source_path);
+//     ser::to_vec_packed(&(channel_id, "import", source_path)).map_err(|err| {
+//         ProtocolError::MessageCreationError {
+//             message: "import".to_owned(),
+//             err,
+//         }
+//     })
+// }
+pub fn import_request(channel_id: u32) -> Result<Vec<u8>, ProtocolError> {
+    info!("-> {{ import }}");
+    ser::to_vec_packed(&(channel_id, "import" )).map_err(|err| {
         ProtocolError::MessageCreationError {
             message: "import".to_owned(),
             err,
@@ -112,10 +121,9 @@ pub fn chunk(
     hash: &str,
     index: u32,
     chunk: &[u8],
-    num_chunks: u32,
 ) -> Result<Vec<u8>, ProtocolError> {
     let chunk_bytes = Value::Bytes(chunk.to_vec());
-    info!("-> {{ Chn:{}, #:{}, Progress:{}/{} chunk_data }}", channel_id, hash, index, num_chunks);
+    info!("-> {{ Chn:{}, #:{}, Progress:{} chunk_data }}", channel_id, hash, index);
     ser::to_vec_packed(&(channel_id, hash, index, chunk_bytes)).map_err(|err| {
         ProtocolError::MessageCreationError {
             message: "chunk".to_owned(),
@@ -167,14 +175,14 @@ pub fn operation_failure(channel_id: u32, error: &str) -> Result<Vec<u8>, Protoc
 }
 
 // Create sync message
-//Reports dead code
-// pub fn sync(channel_id: u32, hash: &str) -> Result<Vec<u8>, ProtocolError> {
-//     info!("-> {{ {}, {} }}", channel_id, hash);
-//     ser::to_vec_packed(&(channel_id, hash)).map_err(|err| ProtocolError::MessageCreationError {
-//         message: "sync".to_owned(),
-//         err,
-//     })
-// }
+// Reports dead code
+pub fn sync(channel_id: u32, hash: &str) -> Result<Vec<u8>, ProtocolError> {
+    info!("-> {{ {}, {} }}", channel_id, hash);
+    ser::to_vec_packed(&(channel_id, hash)).map_err(|err| ProtocolError::MessageCreationError {
+        message: "sync".to_owned(),
+        err,
+    })
+}
 
 pub fn cleanup(channel_id: u32, hash: Option<String>) -> Result<Vec<u8>, ProtocolError> {
     info!("-> {{ {}, cleanup, {:?}, }}", channel_id, hash);
