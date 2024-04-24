@@ -36,7 +36,7 @@ fn upload(
     );
 
     // Copy file to upload to temp storage. Calculate the hash and chunk info
-    let (file_name, hash, num_chunks, mode) = protocol_instance.initialize_file(&source_path)?;
+    let (_, hash, num_chunks, mode) = protocol_instance.initialize_file(&source_path)?;
 
     // Generate channel id for transaction
     let channel = protocol_instance.generate_channel()?;
@@ -65,7 +65,7 @@ struct Meta {
 }
 
 fn download(
-    mut protocol_instance: FileProtocol,
+    protocol_instance: FileProtocol,
     // source_path: &str,
     // target_path: &str,
 ) -> Result<(), failure::Error> {
@@ -348,7 +348,7 @@ fn main() {
             upload(protocol_instance, &source_path, &target_path)
         }
         Some("download") => {
-            let download_args = args.subcommand_matches("download").unwrap();
+            // let download_args = args.subcommand_matches("download").unwrap();
             // let source_path = download_args.value_of("source_path").unwrap();
             // let target_path = match download_args.value_of("target_path") {
             //     Some(path) => path.to_owned(),
