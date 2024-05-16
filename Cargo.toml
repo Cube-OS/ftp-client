@@ -8,6 +8,6 @@ edition = "2018"
 simplelog = "^0.12.0"
 clap = "3.2"
 log = "^0.4.0"
-file-protocol = { git = "ssh://github.com/Cube-OS/file-protocol" }
+file-protocol = { git = "ssh://github.com/Cube-OS/file-protocol", rev = "7176006c" }
 bincode = { git = "ssh://github.com/Cube-OS/bincode" }
 failure = "0.1.8"
